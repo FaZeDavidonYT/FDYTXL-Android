@@ -10,9 +10,10 @@ permissions:
 jobs:
   build:
     name: Build installable FDYTXL debug APK
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
-      - name: Get uploaded ZIP
+      - name: Get uploaded FDYTXL source ZIP
         uses: actions/checkout@v4
 
       - name: Install Java 17
@@ -21,18 +22,26 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android SDK licences and install API 36
+        shell: bash
+        run: |
+          SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK/cmdline-tools/latest/bin/sdkmanager"
 
-      - name: Install SDK API 36
-        run: sdkmanager "platforms;android-36" "build-tools;35.0.0"
+          test -x "$SDKMANAGER"
 
-      - name: Set up Gradle 8.13
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+
+          "$SDKMANAGER" --install "platforms;android-36" "build-tools;35.0.0" "platform-tools"
+
+          "$SDKMANAGER" --list_installed | grep -F 'platforms;android-36'
+
+      - name: Install Gradle 8.13
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
 
-      - name: Extract uploaded FDYTXL source ZIP
+      - name: Extract FDYTXL Android project
         run: |
           mkdir -p workspace
           unzip -q FDYTXL-Android-source.zip -d workspace
@@ -40,9 +49,9 @@ jobs:
 
       - name: Build FDYTXL APK
         working-directory: workspace/FDYTXL-Android
-        run: gradle --no-daemon --stacktrace :app:assembleDebug
+        run: gradle --no-daemon --console=plain :app:assembleDebug
 
-      - name: Downloadable APK artifact
+      - name: Save APK as downloadable ZIP
         uses: actions/upload-artifact@v4
         with:
           name: FDYTXL-Android-debug-APK
